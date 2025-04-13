@@ -361,17 +361,6 @@ Conflict resolution is handled by:
 
 ---
 
-## Planned Features
-
-- ✅ CLI-based interface (in progress)
-- ✅ Modular service layer
-- 🟡 Background worker and Redis integration
-- 🟡 RESTful API
-- 🟡 Admin dashboard and analytics
-- 🟡 Store-level multi-tenancy
-
----
-
 ## Deployment & Scaling Notes
 
 - Horizontally scalable by stateless APIs and cache-first reads.
