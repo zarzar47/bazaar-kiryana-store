@@ -40,7 +40,7 @@ app.post('/api/products/sale', Sale);
 app.get('/api/products/', Get_Products);
 app.get('/api/products/movement/:id', Get_Product_Movements); // using get instead of post helps to maintain RESTful principels
 app.post('/api/products/addProd', Add_New_Product); // using get instead of post helps to maintain RESTful principels
-app.post('/api/products/removeProd', Remove_Products);
+app.delete('/api/products/removeProd', Remove_Products);
 // Middleware to parse JSON bodies
 
 // Port Number
