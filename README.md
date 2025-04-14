@@ -203,49 +203,25 @@ Models Vendor information with the basic vendor_id as the primary key.
 
 ## Overview
 
-The Kiryana Store Inventory System is a monolithic application designed to manage inventory for small-scale retail stores. It ensures real-time consistency between a local and central MySQL database using event-sourced synchronization, while maintaining per-store security through JWT-based authentication.
+In this final phase we can describe the  Kiryana Store Inventory System as a monolithic application designed to manage inventory for small-scale retail stores. It ensures real-time consistency between a local and central MySQL database using event-sourced synchronization, while maintaining per-store security through JWT-based authentication.
 
 This phase introduces:
 - Full multi-store support
-- Secure access control
 - Event-driven synchronization
 - Strong consistency
 - Central database integration
 
 ---
 
-## Architecture Summary (Monolithic)
-
-The system follows a **monolithic architecture** where all core functionalities — inventory management, user authentication, event syncing, and reporting — are implemented as modules within a single deployable unit.
-
-### Components:
-| Module | Role |
-|--------|------|
-| **Inventory Module** | Handles product additions, updates, stock movements (stock-in, sale, manual removal). |
-| **Event Module** | Tracks all changes and queues them for syncing with the central DB. |
-| **Auth Module** | Issues and validates JWT tokens, with role-based access tied to individual stores. |
-| **Sync Module** | Periodically pushes local events to the central database and handles conflict resolution. |
-| **Reporting Module** | Provides product-level and store-level summaries and analytics. |
+## Server-side scalability
+Due to the large number of requests we will be receiving and handling its imperitive that we introduce some sort of mechanism by which we can reduce the strain on the server as much as possible. Here we can implement a load-balancer. A load balancer will allow us to reduce the strain on a single server by utilizing multiple servers and dividing the load in such a way that we avoid burdening a single server. A very popular choice for load-balancing we will use is nginx which is a HTTP server, load balancer, reverse proxy, etc all rolled up into one server, this is a very popular choice among web servers.
+- The server we have implemented so far in express.js is stateless and ready to be horizontally scaled by running multiple instances using docker behind a load balancer.
 
 ---
 
-## API Design Principles
-
-The API follows RESTful design principles:
-
-- **Stateless**: Each request is independent and must include a valid JWT.
-- **Uniform Interface**: Clear endpoints for each resource and action.
-- **Layered System**: Modules are logically separated but reside in the same process space.
-- **Cacheable**: Response headers indicate whether a response is cacheable (where appropriate).
-
----
-
-## Authentication and Authorization
-
-- **JWT Tokens** are issued per store during login.
-- Each token includes claims like `store_id` and `role` (e.g., manager, viewer).
-- Sensitive operations (e.g., stock updates) are protected by middleware checking token validity and role-based access.
-
+## Asynchronous Updates
+In order to implement asynchronous updates, we can use event systems like message queues (e.g., RabbitMQ or Kafka) to publish events whenever inventory changes occur, allowing other parts of the system—such as analytics, syncing, or notifications—to process these events independently without blocking the main flow. For my implementation to simplify matters I created a very generic event handler by emitting and handling events for synchronization.
+In order to reduce the number of API calls that can hinder the servers we also reduced each client to only be allowed about 100 calls to the server per 15 minute time-window, this is acceptable since we cannot expect there to be more than 100 inventory operations from a single store.
 ---
 
 ## Database Design
@@ -253,16 +229,8 @@ The API follows RESTful design principles:
 - **Local MySQL** instance handles all store data.
 - **Event log table** stores all stock movement events, each stamped with a timestamp and sync status.
 - **Central MySQL** database acts as the master data sink to support central visibility and reporting.
-
-Tables include:
-
-- `Products`
-- `Inventory`
-- `StockMovements`
-- `Users`
-- `EventLog`
-
----
+In order to reduce the strain on a central database we divide the database into multiple sections that each contain a separate section of the original data (in this case we are dividing based on store_id), this is known as sharding. Sharding allows us to horizontally expand the data, but this creates another requirement where we need to add a separate sharding router to know which shard to pass requests too.
+An important aspect of MySQL and most relational databases is that we do not need to implement Read/Write separation explicitly as it is done within the database system.
 
 ## Syncing Logic
 
@@ -273,50 +241,17 @@ Tables include:
 Conflict resolution is handled by:
 - Applying events only if the last known quantity matches.
 - Falling back to a reconciliation process if divergence is detected.
-
+- Any other Database resolution system that MySQL utilizes.
 ---
 
-## Deployment Recommendations
+### Design Decisions & Trade-offs
 
-### Local (per store):
-- Single instance (e.g., Python Flask / FastAPI or Node.js Express)
-- MySQL community edition
-- Simple cron-based job or background thread for syncing
-
-### Central (cloud):
-- Secure MySQL instance
-- Reverse proxy (e.g., Nginx) for exposing sync endpoint
-- HTTPS enforced with token verification middleware
-
-**Environment Variables:**
-- `SECRET_KEY` for JWT
-- `MYSQL_LOCAL_URI`
-- `MYSQL_CENTRAL_URI`
-- `SYNC_INTERVAL_SECONDS`
-
----
-
-## Future Considerations
-
-- **Microservice Transition**: As usage scales, modules (like Auth, Sync) can be extracted into microservices.
-- **Offline Mode**: Support for continued operation during network outages.
-- **Admin Portal**: Web-based dashboard for managing stores and inventory centrally.
-- **Advanced Conflict Resolution**: Implement vector clocks or version-based conflict tracking.
-- **Analytics Integration**: Add support for tools like Metabase or Superset.
-
----
-
-## Example API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/products/add` | Add a new product to inventory |
-| `POST` | `/api/stock/sale` | Register a sale |
-| `POST` | `/api/stock/manual-removal` | Manual quantity adjustment |
-| `GET`  | `/api/products/:id/quantity` | Get current quantity |
-| `POST` | `/api/auth/login` | Authenticate and receive JWT token |
-
----
+- **Monolithic over Microservices**: Easier to maintain under time constraints, less infrastructure complexity.
+- **MySQL over PostgreSQL**: Familiarity and ease of use, despite PostgreSQL offering richer features.
+- **Event-driven updates**: Emulated via Node.js EventEmitter to show asynchronous design.
+- **Horizontal scaling**: Achieved via stateless server design + future deployment via load balancer.
+- **Read/Write separation & caching**: Future Redis integration and replica routing is possible.
+- **JWT Auth**: Ensures each store manages its own data securely.
 
 
 ## Key Design Decisions
@@ -337,34 +272,18 @@ Conflict resolution is handled by:
 
 ---
 
-### 3. **Decoupling with Message Queues**
+### 3. **Decoupling with Event Sourcing**
 
 - **Why**: To avoid bottlenecks and allow asynchronous processing (e.g., database writes, alerts, batch operations).
 - **Trade-off**: Adds operational complexity and message consistency concerns.
 - **Decision**: Chosen for **scalability** and **resilience**. Failure in one component doesn't halt the whole system.
-
 ---
 
-### 4. **Caching with Redis**
-
-- **Why**: Reads (e.g., checking current stock) should be fast and frequent.
-- **Trade-off**: Risk of stale data if invalidation isn’t handled properly.
-- **Decision**: Used for **read performance**. Writes always go to the DB, but the cache is updated or invalidated as needed.
-
----
-
-### 5. **Write-Only DB from Services**
-
-- **Why**: Prevent read-write race conditions and enforce cache use.
-- **Trade-off**: Slightly increased logic complexity.
-- **Decision**: Ensures **cache is always authoritative** for reads, helping with **horizontal scaling** in future.
-
----
 
 ## Deployment & Scaling Notes
 
 - Horizontally scalable by stateless APIs and cache-first reads.
-- Background workers and queues allow high-volume stores to operate independently.
+- Event sourcing and queues allow high-volume stores to operate independently.
 - Modular services support breaking into microservices if needed later.
 
 ---
