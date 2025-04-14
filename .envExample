@@ -1,0 +1,4 @@
+DB_NAME = 'kiryanastore'
+DB_PASS = 'kookoo'
+DB_USER = 'kookoo'
+secret_key = 'kookoo'

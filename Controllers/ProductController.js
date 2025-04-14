@@ -52,7 +52,13 @@ async function Sale(req, res) {
   
       // Update the product's stock (decrease quantity)
       await Database.updateProductStock(product_id, -quantity);
-
+      // event emitting for synchronous handling (for demonstration purposes only)
+      const inventoryEmitter = require('../eventEmitter'); // Import the event emitter
+      inventoryEmitter.emit('sale_event', {
+        product_id: req.body.product_id,
+        quantity: req.body.quantity,
+        timestamp: new Date()
+      });
       res.status(200).send({ message: 'Sale successful', movement });
     } catch (error) {
       res.status(500).send({ error: 'An error occurred', details: error.message });
