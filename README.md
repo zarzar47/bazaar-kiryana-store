@@ -214,12 +214,14 @@ This phase introduces:
 ---
 
 ## Server-side scalability
+
 Due to the large number of requests we will be receiving and handling its imperitive that we introduce some sort of mechanism by which we can reduce the strain on the server as much as possible. Here we can implement a load-balancer. A load balancer will allow us to reduce the strain on a single server by utilizing multiple servers and dividing the load in such a way that we avoid burdening a single server. A very popular choice for load-balancing we will use is nginx which is a HTTP server, load balancer, reverse proxy, etc all rolled up into one server, this is a very popular choice among web servers.
 - The server we have implemented so far in express.js is stateless and ready to be horizontally scaled by running multiple instances using docker behind a load balancer.
 
 ---
 
 ## Asynchronous Updates
+
 In order to implement asynchronous updates, we can use event systems like message queues (e.g., RabbitMQ or Kafka) to publish events whenever inventory changes occur, allowing other parts of the system—such as analytics, syncing, or notifications—to process these events independently without blocking the main flow. For my implementation to simplify matters I created a very generic event handler by emitting and handling events for synchronization.
 In order to reduce the number of API calls that can hinder the servers we also reduced each client to only be allowed about 100 calls to the server per 15 minute time-window, this is acceptable since we cannot expect there to be more than 100 inventory operations from a single store.
 ---
